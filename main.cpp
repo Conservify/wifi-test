@@ -17,11 +17,18 @@ void debugf(const char *f, ...) {
     vsnprintf(buffer, DEBUG_LINE_MAX, f, args);
     va_end(args);
 
-    Serial.print(buffer);
+    if (Serial) {
+        Serial.print(buffer);
+    }
+    Serial5.print(buffer);
 }
 
 void setup() {
+    Serial5.begin(115200);
     Serial.begin(115200);
+
+    while (!Serial && millis() < 2000) {
+    }
 
     #ifdef FK_NATURALIST
     static constexpr uint8_t WIFI_PIN_CS = 7;
@@ -53,10 +60,6 @@ void setup() {
             delay(100);
             digitalWrite(13, LOW);
         }
-    }
-
-    while (!Serial) {
-        delay(10);
     }
 
     static constexpr uint8_t SD_PIN_CS = 12;
@@ -96,10 +99,10 @@ void upload(size_t length, size_t buffer_size) {
 
     wcl.stop();
 
-    constexpr const char *server = "192.168.0.141";
+    const char *server = "192.168.5.148";
 
     if (wcl.connect(server, 8080)) {
-        Serial.println("Connecting...");
+        debugf("Connecting...\n");
         wcl.println("POST /data.bin HTTP/1.1");
         wcl.print("Host: "); wcl.println(server);
         wcl.println("Content-Type: application/octet");
@@ -108,7 +111,7 @@ void upload(size_t length, size_t buffer_size) {
         wcl.println("Connection: close");
         wcl.println();
 
-        Serial.println("Connected...");
+        debugf("Connected...\n");
 
         auto uploadStarted = millis();
         auto lastStatus = 0;
@@ -159,7 +162,7 @@ void upload(size_t length, size_t buffer_size) {
         wcl.stop();
     }
     else {
-        Serial.println("Connection failed");
+        debugf("Connection failed\n");
     }
 
     delay(1000);
@@ -168,12 +171,12 @@ void upload(size_t length, size_t buffer_size) {
 void loop() {
     auto statusAt = millis();
 
-    Serial.println("Ready");
+    debugf("Ready\n");
 
     while (true) {
         if (millis() - statusAt > 1000) {
-            Serial.print(getWifiStatus(WiFi.status()));
-            Serial.println("");
+            debugf(getWifiStatus(WiFi.status()));
+            debugf("\n");
             statusAt = millis();
         }
 
