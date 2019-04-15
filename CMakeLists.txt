@@ -1,17 +1,26 @@
+cmake_minimum_required(VERSION 3.5)
 project(ARDUINO_PROJECTS)
-cmake_minimum_required(VERSION 2.6)
 
-set(ARDUINO_IDE "${CMAKE_CURRENT_SOURCE_DIR}/../arduino-1.8.3")
+set(CMAKE_MODULE_PATH $ENV{CMAKE_MODULE_PATH})
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/../arduino-cmake-minimal/cmake/")
+include(Arduino)
 
-include(ArduinoMinimal)
+enable_arduino_toolchain()
 
-set(SOURCE_FILES
-  main.cpp
-)
+file(GLOB sources *.cpp)
 
-set(LIBRARIES SPI)
+add_arduino_library(wifi-test "${sources}")
+
+# enable_small_bootloader()
+
+find_package(WiFi101)
+target_link_libraries(wifi-test WiFi101)
+
+find_package(arduino-logging)
+target_link_libraries(wifi-test arduino-logging)
+
+find_package(SerialFlash)
+target_link_libraries(wifi-test SerialFlash)
 
 option(FK_CORE "Apply FieldKit Core configuration.")
 if(FK_CORE)
@@ -28,4 +37,4 @@ if(ADAFRUIT_FEATHER)
   add_definitions(-DADAFRUIT_FEATHER)
 endif(ADAFRUIT_FEATHER)
 
-arduino(wifi-test "${SOURCE_FILES}" "${LIBRARIES}")
+add_arduino_firmware(wifi-test)

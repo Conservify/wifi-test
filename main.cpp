@@ -1,6 +1,11 @@
+#include <SPI.h>
 #include <WiFi101.h>
+#include <WiFiUdp.h>
 
 #include <Arduino.h>
+#include <SerialFlash.h>
+#include <SPI.h>
+
 #include <cstdarg>
 
 #include "secrets.h"
@@ -23,18 +28,24 @@ void debugf(const char *f, ...) {
 void setup() {
     Serial.begin(115200);
 
+    while (!Serial) {
+        delay(10);
+    }
+
     #ifdef FK_NATURALIST
     static constexpr uint8_t WIFI_PIN_CS = 7;
     static constexpr uint8_t WIFI_PIN_IRQ = 16;
     static constexpr uint8_t WIFI_PIN_RST = 15;
     static constexpr uint8_t WIFI_PIN_EN = 38;
+    Serial.println("FK_NATURALIST");
     #endif
 
     #ifdef FK_CORE
     static constexpr uint8_t WIFI_PIN_CS = 7;
-    static constexpr uint8_t WIFI_PIN_IRQ = 9;
-    static constexpr uint8_t WIFI_PIN_RST = 10;
-    static constexpr uint8_t WIFI_PIN_EN = 11;
+    static constexpr uint8_t WIFI_PIN_IRQ = 16;
+    static constexpr uint8_t WIFI_PIN_RST = 15;
+    static constexpr uint8_t WIFI_PIN_EN = 38;
+    Serial.println("FK_CORE");
     #endif
 
     #ifdef ADAFRUIT_FEATHER
@@ -42,34 +53,90 @@ void setup() {
     static constexpr uint8_t WIFI_PIN_IRQ = 7;
     static constexpr uint8_t WIFI_PIN_RST = 4;
     static constexpr uint8_t WIFI_PIN_EN = 2;
+    Serial.println("ADAFRUIT_FEATHER");
     #endif
 
-    WiFi.setPins(WIFI_PIN_CS, WIFI_PIN_IRQ, WIFI_PIN_RST, WIFI_PIN_EN);
-    if (WiFi.status() == WL_NO_SHIELD) {
-        pinMode(13, OUTPUT);
-        while (true) {
-            delay(100);
-            digitalWrite(13, HIGH);
-            delay(100);
-            digitalWrite(13, LOW);
-        }
-    }
+    Serial.println("Reset board...");
 
-    while (!Serial) {
-        delay(10);
-    }
+    SPI.begin();
 
     static constexpr uint8_t SD_PIN_CS = 12;
-    static constexpr uint8_t FLASH_PIN_CS = (26u);
+    static constexpr uint8_t FLASH_PIN_CS = 26u;
+    static constexpr uint8_t PERIPHERALS_ENABLE_PIN = 25u;
+    static constexpr uint8_t RFM95_PIN_CS = 5;
 
+    pinMode(PERIPHERALS_ENABLE_PIN, OUTPUT);
+    digitalWrite(PERIPHERALS_ENABLE_PIN, LOW);
+
+    pinMode(WIFI_PIN_RST, OUTPUT);
+    pinMode(WIFI_PIN_EN, OUTPUT);
     pinMode(FLASH_PIN_CS, OUTPUT);
     pinMode(SD_PIN_CS, OUTPUT);
+    pinMode(WIFI_PIN_CS, OUTPUT);
+    pinMode(RFM95_PIN_CS, OUTPUT);
 
     digitalWrite(FLASH_PIN_CS, HIGH);
     digitalWrite(SD_PIN_CS, HIGH);
     digitalWrite(WIFI_PIN_CS, HIGH);
+    digitalWrite(RFM95_PIN_CS, HIGH);
 
-    WiFi.begin(WifiSsid, WifiPassword);
+    pinMode(WIFI_PIN_EN, LOW);
+
+    digitalWrite(PERIPHERALS_ENABLE_PIN, LOW);
+    pinMode(WIFI_PIN_RST, LOW);
+    delay(100);
+    digitalWrite(PERIPHERALS_ENABLE_PIN, HIGH);
+    pinMode(WIFI_PIN_RST, HIGH);
+    delay(100);
+
+    SPI.begin();
+
+    if (false)
+        while (true) {
+            if (!SerialFlash.begin(FLASH_PIN_CS)) {
+                Serial.println("Flash FAILED...");
+                while (true) {
+                    delay(100);
+                }
+            }
+            break;
+            delay(1000);
+        }
+
+    Serial.println("Configuring...");
+    WiFi.setPins(WIFI_PIN_CS, WIFI_PIN_IRQ, WIFI_PIN_RST, WIFI_PIN_EN);
+
+    Serial.println("Check board...");
+    while (true) {
+        if (WiFi.status() == WL_NO_SHIELD) {
+            Serial.println("FAIL");
+
+            delay(1000);
+
+            /*
+            pinMode(13, OUTPUT);
+            while (true) {
+                delay(100);
+                digitalWrite(13, HIGH);
+                delay(100);
+                digitalWrite(13, LOW);
+            }
+            */
+        }
+        else {
+            break;
+        }
+    }
+
+    Serial.println("Creating AP...");
+    auto status = WiFi.beginAP("JACOB", 5);
+    if (status != WL_AP_LISTENING) {
+        Serial.println("FAIL");
+    }
+
+    // Serial.println("Connecting...");
+    // Serial.println(WifiSsid);
+    // WiFi.begin(WifiSsid, WifiPassword);
 }
 
 const char *getWifiStatus(uint8_t status) {
@@ -165,6 +232,34 @@ void upload(size_t length, size_t buffer_size) {
     delay(1000);
 }
 
+void ping() {
+    auto destination = IPAddress(255, 255, 255, 255);
+
+    auto started = millis();
+
+    // Why is this API like this? So weird.
+    WiFiUDP udp;
+    if (udp.begin(54321)) {
+        if (!udp.beginPacket(destination, 54321)) {
+            debugf("Failed: beginPacket\n");
+        }
+        else {
+            uint8_t deviceId[8] = { 0xcc };
+
+            udp.write(deviceId, sizeof(deviceId));
+
+            if (!udp.endPacket()) {
+                debugf("Failed: endPacket\n");
+            }
+        }
+        udp.stop();
+    }
+
+    auto finished = millis();
+
+    debugf("Ping (%dms)\n", finished - millis());
+}
+
 void loop() {
     auto statusAt = millis();
 
@@ -172,11 +267,39 @@ void loop() {
 
     while (true) {
         if (millis() - statusAt > 1000) {
-            Serial.print(getWifiStatus(WiFi.status()));
-            Serial.println("");
+            auto s1 = millis();
+            auto status = WiFi.status();
+            auto s2 = millis();
+            auto ssid = WiFi.SSID();
+            auto s3 = millis();
+            auto rssi = WiFi.RSSI();
+            auto s4 = millis();
+            auto version = WiFi.firmwareVersion();
+            auto s5 = millis();
+
+            Serial.print(getWifiStatus(status));
+            Serial.print(" ");
+            Serial.print(rssi);
+            Serial.print(" ");
+            Serial.print(ssid);
+            Serial.print(" ");
+            Serial.print(version);
+            Serial.print(" ");
+            Serial.print(s2 - s1);
+            Serial.print(" ");
+            Serial.print(s3 - s2);
+            Serial.print(" ");
+            Serial.print(s4 - s3);
+            Serial.print(" ");
+            Serial.print(s5 - s4);
+            Serial.println("ms");
+
             statusAt = millis();
+
+            ping();
         }
 
+        /*
         if (WiFi.status() == WL_CONNECTED) {
             WiFi.noLowPowerMode();
 
@@ -185,5 +308,6 @@ void loop() {
             upload(1024 * 1024, 1024);
             upload(1024 * 1024, 1400);
         }
+        */
     }
 }
