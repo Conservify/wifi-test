@@ -22,10 +22,14 @@ void debugf(const char *f, ...) {
     vsnprintf(buffer, DEBUG_LINE_MAX, f, args);
     va_end(args);
 
-    Serial.print(buffer);
+    if (Serial) {
+        Serial.print(buffer);
+    }
+    Serial5.print(buffer);
 }
 
 void setup() {
+    Serial5.begin(115200);
     Serial.begin(115200);
 
     while (!Serial) {
@@ -163,10 +167,10 @@ void upload(size_t length, size_t buffer_size) {
 
     wcl.stop();
 
-    constexpr const char *server = "192.168.0.141";
+    const char *server = "192.168.5.148";
 
     if (wcl.connect(server, 8080)) {
-        Serial.println("Connecting...");
+        debugf("Connecting...\n");
         wcl.println("POST /data.bin HTTP/1.1");
         wcl.print("Host: "); wcl.println(server);
         wcl.println("Content-Type: application/octet");
@@ -175,7 +179,7 @@ void upload(size_t length, size_t buffer_size) {
         wcl.println("Connection: close");
         wcl.println();
 
-        Serial.println("Connected...");
+        debugf("Connected...\n");
 
         auto uploadStarted = millis();
         auto lastStatus = 0;
@@ -226,7 +230,7 @@ void upload(size_t length, size_t buffer_size) {
         wcl.stop();
     }
     else {
-        Serial.println("Connection failed");
+        debugf("Connection failed\n");
     }
 
     delay(1000);
@@ -263,10 +267,11 @@ void ping() {
 void loop() {
     auto statusAt = millis();
 
-    Serial.println("Ready");
+    debugf("Ready\n");
 
     while (true) {
         if (millis() - statusAt > 1000) {
+<<<<<<< HEAD
             auto s1 = millis();
             auto status = WiFi.status();
             auto s2 = millis();
@@ -294,6 +299,10 @@ void loop() {
             Serial.print(s5 - s4);
             Serial.println("ms");
 
+=======
+            debugf(getWifiStatus(WiFi.status()));
+            debugf("\n");
+>>>>>>> 22b30ff845798799ffb513bd93167b3c512d39a0
             statusAt = millis();
 
             ping();
