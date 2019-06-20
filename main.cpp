@@ -271,7 +271,6 @@ void loop() {
 
     while (true) {
         if (millis() - statusAt > 1000) {
-<<<<<<< HEAD
             auto s1 = millis();
             auto status = WiFi.status();
             auto s2 = millis();
@@ -299,10 +298,9 @@ void loop() {
             Serial.print(s5 - s4);
             Serial.println("ms");
 
-=======
             debugf(getWifiStatus(WiFi.status()));
             debugf("\n");
->>>>>>> 22b30ff845798799ffb513bd93167b3c512d39a0
+
             statusAt = millis();
 
             ping();
